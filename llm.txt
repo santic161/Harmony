@@ -1,237 +1,256 @@
 # agentic-decision — LLM Integration Reference
 
-Use this file as context when generating code that integrates the `agentic-decision` library.
-Paste the contents of this file into your LLM's system prompt or context window before asking it to write integration code.
+Use this file as compact context when generating code against `agentic-decision`.
+It reflects the public API exported by the package, including:
+
+- `DecisionOrchestrator`
+- `skills` and `skillSources`
+- controlled `actions`
+- `rehydrator`
+- `Decision<T>.usage`
+- `WhatsAppWebProvider` and `WhatsAppStubProvider`
+- portable/imported Agent Skills from local folders, ZIPs, URLs, SkillHub, and ClawHub
 
 ---
 
 ## What the library does
 
-`agentic-decision` runs multi-turn LLM agent loops that interact with real humans over messaging channels (Telegram, WhatsApp, Console, custom) until a validated, typed decision is reached. The result is returned as `Promise<Decision<T>>`.
+`agentic-decision` runs multi-turn LLM decision loops that can:
 
-- **Blocking:** `await orchestrator.startDecision(...)` — suspends until resolved
-- **Non-blocking:** `.startDecision(...).then(handler)` or void — fires in background
-- LLM speaks a strict JSON action protocol: `ask | propose | run_action | finalize | abort`
-- Every LLM output validated by Zod. Invalid output → self-repair loop, not crash.
-- User messages sanitized and wrapped in `<user_input>` delimiters before LLM sees them.
-- Optional `skills` add task-specific instructions and examples only when enabled for a decision.
-- Optional `actions` expose controlled runtime capabilities; the model can invoke only allowed action ids, never raw shell text.
+- ask a real person follow-up questions over a messaging channel
+- call a host-defined set of runtime actions
+- pause and resume across process restarts
+- finalize only when the output matches a Zod schema
+
+The result of `startDecision()` is `Promise<Decision<T>>`.
+
+The model does not get arbitrary tool access.
+It must stay inside the strict agent action protocol:
+
+```json
+{ "action": "ask", "question": "...", "reasoning": "..." }
+{ "action": "propose", "proposal": "...", "confidence": 0.82, "reasoning": "..." }
+{ "action": "run_action", "actionId": "inspect_release", "input": {}, "progressMessage": "...", "reasoning": "..." }
+{ "action": "finalize", "value": { "...": "..." }, "confidence": 0.98, "reasoning": "..." }
+{ "action": "abort", "reason": "..." }
+```
 
 ---
 
 ## Install
 
 ```bash
-pnpm add agentic-decision zod pino nanoid
-pnpm add openai                 # or @anthropic-ai/sdk or @google/generative-ai
-pnpm add node-telegram-bot-api  # or whatsapp-web.js
+pnpm add agentic-decision
 ```
 
-Requires Node.js >= 20, ESM (`"type": "module"`).
+Add only the optional peer dependencies you actually use:
+
+```bash
+# LLM providers
+pnpm add openai
+pnpm add @anthropic-ai/sdk
+pnpm add @google/generative-ai
+
+# Messaging channels
+pnpm add node-telegram-bot-api
+pnpm add whatsapp-web.js qrcode-terminal
+
+# Optional persistence
+pnpm add ioredis
+```
+
+Requirements:
+
+- Node.js >= 20
+- ESM project (`"type": "module"`)
 
 ---
 
-## Core types
+## Core result types
 
-```typescript
-// What startDecision resolves to
+```ts
+interface DecisionUsage {
+  calls: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  totalUsd: number;
+}
+
 interface Decision<T> {
-  status:     'finalized' | 'aborted' | 'timeout';
-  value:      T | null;       // null unless status === 'finalized'
-  confidence: number;         // 0–1
-  reason?:    string;         // set on abort / timeout
-  turns:      Turn[];         // full conversation history
-  costUsd?:   number;
-  sessionId:  string;
-}
-
-// LLM provider interface — any conforming object works
-interface LLMProvider {
-  name: string;
-  generate(req: LLMRequest): Promise<LLMResponse>;
-}
-
-// Messaging channel interface
-interface MessagingProvider {
-  name:    string;
-  start(): Promise<void>;
-  stop():  Promise<void>;
-  send(to: string, msg: OutboundMessage): Promise<void>;
-  onReply(handler: (msg: InboundMessage) => void): () => void;
-}
-
-// State store interface
-interface StateStore {
-  get(id: string):                     Promise<SessionState | null>;
-  save(id: string, s: SessionState):   Promise<void>;
-  delete(id: string):                  Promise<void>;
+  status: 'finalized' | 'aborted' | 'timeout';
+  value: T | null;
+  confidence: number;
+  reason?: string;
+  turns: readonly Turn[];
+  costUsd?: number;
+  usage?: DecisionUsage;
+  sessionId: string;
 }
 ```
 
+`usage` is present when the underlying LLM provider returns token accounting.
+
 ---
 
-## Main class: DecisionOrchestrator
+## Main class
 
-```typescript
+```ts
 import { DecisionOrchestrator } from 'agentic-decision';
 
-const orchestrator = new DecisionOrchestrator({
-  llm:                 LLMProvider,             // REQUIRED
-  messaging:           MessagingProvider[],     // REQUIRED — min 1
-  store?:              StateStore,              // default: InMemoryStateStore
-  logger?:             Logger,                  // default: pino info, PII-redacted
-  costTracker?:        CostTracker,
-  gate?:               ConfidenceGate,          // tune finalize threshold
-  systemPrompt?:       string,                  // override base system prompt
-  maxTurns?:           number,                  // default 20
-  userReplyTimeoutMs?: number,                  // default 600000 (10 min)
-  llmTimeoutMs?:       number,                  // default 30000
-  llmTemperature?:     number,
-  llmMaxTokens?:       number,
-});
-
-// Additional registries supported by the orchestrator:
-// skills?: SkillDefinition[]        // global skill registry
-// actions?: ActionDefinition[]      // global controlled action registry
-//
-// Each decision can opt into a subset with:
-// skillIds?: string[]
-// allowedActionIds?: string[]
-//
-// Start messaging providers
+const orchestrator = new DecisionOrchestrator(options);
 await orchestrator.start();
-
-// Launch a decision
-const decision = await orchestrator.startDecision({
-  prompt:          string,    // REQUIRED — what the agent must decide
-  userId:          string,    // REQUIRED — your internal user id
-  channel:         string,    // REQUIRED — must match a registered provider's .name
-  externalUserId:  string,    // REQUIRED — channel-native id (chat id, phone, etc.)
-  schema:          ZodType<T>,// REQUIRED — Zod schema for decision.value
-  metadata?:       Record<string, string | number | boolean>,
-  kickoffMessage?: string,    // sent to user before first agent turn
-});
-
-// Shutdown
+const decision = await orchestrator.startDecision(request);
 await orchestrator.stop();
 ```
 
+### `OrchestratorOptions`
+
+```ts
+interface OrchestratorOptions {
+  llm: LLMProvider;
+  messaging: readonly MessagingProvider[];
+  skills?: readonly SkillDefinition[];
+  skillSources?: readonly SkillSource[];
+  actions?: readonly ActionDefinition[];
+  store?: StateStore;
+  logger?: Logger;
+  events?: TypedEmitter;
+  costTracker?: CostTracker;
+  sanitizer?: InputSanitizer;
+  guard?: PromptGuard;
+  validator?: OutputValidator;
+  gate?: ConfidenceGate;
+  systemPrompt?: string;
+  maxTurns?: number;
+  userReplyTimeoutMs?: number;
+  llmTimeoutMs?: number;
+  llmTemperature?: number;
+  llmMaxTokens?: number;
+  rehydrator?: SessionRehydrator;
+}
+```
+
+Important notes:
+
+- `skills` is the static in-memory skill registry.
+- `skillSources` is a portable/imported skill registry that is resolved asynchronously during `start()`.
+- imported and static skills share one merged id namespace.
+- duplicate skill ids throw a clear error.
+- imported skills still require explicit activation through `skillIds`.
+
+### `StartDecisionRequest<T>`
+
+```ts
+interface StartDecisionRequest<T> {
+  prompt: string;
+  userId: string;
+  channel: string;
+  externalUserId: string;
+  schema: ZodType<T>;
+  metadata?: Readonly<Record<string, string | number | boolean>>;
+  kickoffMessage?: string;
+  skillIds?: readonly string[];
+  allowedActionIds?: readonly string[];
+}
+```
+
+### Blocking vs background execution
+
+```ts
+// blocking
+const decision = await orchestrator.startDecision({ ... });
+
+// background
+void orchestrator.startDecision({ ... }).then((decision) => {
+  console.log(decision.status);
+});
+```
+
 ---
 
-## Controlled actions and skills
+## Quick start
 
-When `actions` are registered and a decision enables `allowedActionIds`, the LLM may emit:
+```ts
+import { z } from 'zod';
+import OpenAI from 'openai';
+import {
+  ConsoleProvider,
+  DecisionOrchestrator,
+  OpenAIProvider,
+  type OpenAILike,
+} from 'agentic-decision';
 
-```json
-{ "action": "run_action", "actionId": "run_tests", "input": {}, "progressMessage": "Running tests now.", "reasoning": "Need fresh evidence." }
-```
-
-Important rules for generated integrations:
-
-- Never let the model emit raw shell commands. Expose only named action ids.
-- Validate `input` with Zod before execution.
-- For shell actions, keep `command` fixed and derive args from validated input only.
-- Feed the structured action result back into the loop before asking the human again.
-- Use `skills` for contextual instructions/examples and `allowedActionIds` for hard runtime policy.
-
-## Blocking vs non-blocking
-
-### Blocking — await result
-
-```typescript
-// Code pauses here until agent finalizes, aborts, or times out
-const decision = await orchestrator.startDecision({ ... });
-console.log(decision.status, decision.value);
-```
-
-### Non-blocking — event-driven, fire and forget
-
-```typescript
-// Attach handlers before launching
-orchestrator.on('decisionFinalized', ({ sessionId, decision }) => {
-  saveResult(decision);
-});
-orchestrator.on('error', ({ sessionId, error }) => {
-  console.error(error);
+const ApprovalSchema = z.object({
+  approved: z.boolean(),
+  summary: z.string().min(1),
 });
 
-// Launch without awaiting — returns immediately
-orchestrator.startDecision({ ... }).catch(console.error);
-// Code continues here while agent runs in background
-```
+const orchestrator = new DecisionOrchestrator({
+  llm: new OpenAIProvider({
+    client: new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY!,
+    }) as unknown as OpenAILike,
+    model: 'gpt-4o-mini',
+  }),
+  messaging: [new ConsoleProvider({ externalUserId: 'local-user' })],
+  skills: [
+    {
+      id: 'release-review',
+      description: 'Gather release evidence before recommending deployment.',
+      instructions:
+        'Ask focused questions, summarize risk, and finalize only after confirmation.',
+    },
+  ],
+});
 
-### Concurrent decisions
+const decision = await orchestrator.startDecision({
+  prompt: 'Decide whether tonight\'s deployment should proceed.',
+  userId: 'release-manager',
+  channel: 'console',
+  externalUserId: 'local-user',
+  schema: ApprovalSchema,
+  skillIds: ['release-review'],
+  kickoffMessage: 'Release review started. Please answer in the terminal.',
+});
 
-```typescript
-// Multiple users simultaneously — each (channel + externalUserId) is isolated
-const [a, b] = await Promise.all([
-  orchestrator.startDecision({ externalUserId: 'user-1', ... }),
-  orchestrator.startDecision({ externalUserId: 'user-2', ... }),
-]);
+console.log(decision.status, decision.value, decision.usage?.totalTokens);
+await orchestrator.stop();
 ```
 
 ---
 
 ## LLM providers
 
-### OpenAI
+Bundled adapters:
 
-```typescript
+- `OpenAIProvider`
+- `AnthropicProvider`
+- `GeminiProvider`
+- `OpenRouterProvider`
+- `FallbackChain`
+
+Example:
+
+```ts
 import OpenAI from 'openai';
 import { OpenAIProvider, type OpenAILike } from 'agentic-decision';
 
 const llm = new OpenAIProvider({
-  client: new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) as unknown as OpenAILike,
-  model:  'gpt-4o-mini',  // optional, default: gpt-4o-mini
-  name?:  string,
+  client: new OpenAI({ apiKey: process.env.OPENAI_API_KEY! }) as unknown as OpenAILike,
+  model: 'gpt-4o-mini',
 });
 ```
 
-### Anthropic
+Fallback example:
 
-```typescript
-import Anthropic from '@anthropic-ai/sdk';
-import { AnthropicProvider, type AnthropicLike } from 'agentic-decision';
-
-const llm = new AnthropicProvider({
-  client: new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) as unknown as AnthropicLike,
-  model:  'claude-3-5-sonnet-latest',
-});
-```
-
-### Google Gemini
-
-```typescript
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GeminiProvider, type GeminiLike } from 'agentic-decision';
-
-const llm = new GeminiProvider({
-  client: new GoogleGenerativeAI(process.env.GOOGLE_API_KEY) as unknown as GeminiLike,
-  model:  'gemini-1.5-flash',
-});
-```
-
-### OpenRouter (any model via one API)
-
-```typescript
-import { OpenRouterProvider } from 'agentic-decision';
-
-const llm = new OpenRouterProvider({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  model:  'openrouter/auto',  // or any model slug
-});
-```
-
-### Fallback chain (automatic failover)
-
-```typescript
+```ts
 import { FallbackChain } from 'agentic-decision';
 
 const llm = new FallbackChain({
-  providers:         [openaiProvider, anthropicProvider, geminiProvider],
-  stepTimeoutMs?:    30_000,
-  retryPerProvider?: 2,    // attempts per provider before moving to next
-  logger?:           logger,
+  providers: [openaiProvider, anthropicProvider, geminiProvider],
+  stepTimeoutMs: 30_000,
+  retryPerProvider: 2,
 });
 ```
 
@@ -239,23 +258,30 @@ const llm = new FallbackChain({
 
 ## Messaging providers
 
-### Telegram
+All providers conform to:
 
-```typescript
-import TelegramBot from 'node-telegram-bot-api';
-import { TelegramProvider, type TelegramBotLike } from 'agentic-decision';
-
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
-const telegram = new TelegramProvider({
-  bot: bot as unknown as TelegramBotLike,
-});
-
-// externalUserId = Telegram chat ID (string or number as string)
+```ts
+interface MessagingProvider {
+  readonly name: string;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  send(to: string, msg: OutboundMessage): Promise<void>;
+  onReply(handler: InboundHandler): () => void;
+}
 ```
 
-### WhatsApp (whatsapp-web.js)
+Bundled providers:
 
-```typescript
+- `ConsoleProvider`
+- `TelegramProvider`
+- `WhatsAppWebProvider`
+- `WhatsAppStubProvider`
+
+### `WhatsAppWebProvider`
+
+Use this when you have a real `whatsapp-web.js`-compatible client:
+
+```ts
 import { Client, LocalAuth } from 'whatsapp-web.js';
 import { WhatsAppWebProvider } from 'agentic-decision';
 
@@ -264,211 +290,356 @@ const client = new Client({ authStrategy: new LocalAuth() });
 const whatsapp = new WhatsAppWebProvider({
   client,
   initializeClientOnStart: true,
+  destroyClientOnStop: false,
+});
+```
+
+### `WhatsAppStubProvider`
+
+Use this when you want a light adapter for tests, demos, or your own message bridge:
+
+```ts
+import { WhatsAppStubProvider } from 'agentic-decision';
+
+const whatsapp = new WhatsAppStubProvider({
+  sendHook: async (to, msg) => {
+    console.log(`[stub -> ${to}] ${msg.text}`);
+  },
 });
 
 await whatsapp.start();
-// externalUserId = WhatsApp number in format "15551234567@c.us"
-```
-
-### Console (local dev / tests)
-
-```typescript
-import { ConsoleProvider } from 'agentic-decision';
-
-const console_ = new ConsoleProvider({ externalUserId: 'local-user' });
-// Type replies in terminal. externalUserId must match what you pass to startDecision.
-```
-
-### Custom channel
-
-```typescript
-import type { MessagingProvider, InboundHandler, OutboundMessage } from 'agentic-decision';
-
-class MyProvider implements MessagingProvider {
-  readonly name = 'my-channel';  // must match channel in startDecision
-  private handlers = new Set<InboundHandler>();
-
-  async start()  { /* subscribe / connect */ }
-  async stop()   { /* unsubscribe / disconnect */ }
-
-  async send(to: string, msg: OutboundMessage) {
-    await myApi.sendMessage(to, msg.text);
-  }
-
-  onReply(handler: InboundHandler): () => void {
-    this.handlers.add(handler);
-    return () => this.handlers.delete(handler);
-  }
-
-  // Call from your platform's webhook / listener
-  dispatch(userId: string, text: string) {
-    for (const h of this.handlers) {
-      h({ channel: this.name, externalUserId: userId, text, receivedAt: Date.now() });
-    }
-  }
-}
+whatsapp.inject({
+  externalUserId: '15551234567@c.us',
+  text: 'yes, confirm',
+});
 ```
 
 ---
 
-## State stores
+## Controlled actions
 
-### In-memory (default)
+Actions are registered globally and enabled per decision through `allowedActionIds`.
 
-No configuration needed. Sessions lost on restart.
+### Handler action
 
-### Redis
+```ts
+{
+  id: 'inspect_release',
+  title: 'Inspect release',
+  description: 'Returns trusted deployment evidence from the host runtime.',
+  kind: 'handler',
+  inputSchema: z.object({}),
+  execute: async () => ({
+    risk: 'low',
+    rollbackReady: true,
+  }),
+}
+```
 
-```typescript
-import IORedis from 'ioredis';
-import { RedisStateStore } from 'agentic-decision';
+### Shell action
 
-const store = new RedisStateStore(
-  new IORedis(process.env.REDIS_URL),
-  { keyPrefix: 'agentic:session:', ttlSeconds: 3600 }
+```ts
+{
+  id: 'run_focused_tests',
+  title: 'Run focused tests',
+  description: 'Runs the targeted Vitest suite.',
+  kind: 'shell',
+  inputSchema: z.object({}),
+  command: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+  buildArgs: () => ['exec', 'vitest', 'run', 'test/AgentEngine.test.ts'],
+  cwd: process.cwd(),
+  envAllowlist: ['CI'],
+}
+```
+
+Security model for actions:
+
+- the model never emits raw shell text
+- action ids must be registered by the host
+- action input is Zod-validated before execution
+- shell actions use fixed commands plus validated args
+
+---
+
+## Static skills
+
+Static skills are plain objects:
+
+```ts
+interface SkillDefinition {
+  id: string;
+  description: string;
+  instructions: string;
+  preferredActionIds?: readonly string[];
+  examples?: readonly string[];
+  source?: ImportedSkillSource;
+  resources?: readonly SkillResource[];
+  license?: string;
+  compatibility?: string;
+  metadata?: Readonly<Record<string, unknown>>;
+  allowedTools?: readonly string[];
+  diagnostics?: readonly string[];
+}
+```
+
+Example:
+
+```ts
+const skills = [
+  {
+    id: 'repo-audit',
+    description: 'Inspect the repository and summarize evidence before deciding.',
+    instructions:
+      'Prefer repository inspection first, then summarize risk and ask for confirmation.',
+    preferredActionIds: ['inspect_files', 'read_package_json'],
+  },
+];
+```
+
+Only skills listed in `skillIds` are injected into a given decision.
+
+---
+
+## Portable / imported Agent Skills
+
+Portable skills are imported `SKILL.md` bundles.
+
+The library exposes these helpers:
+
+```ts
+import {
+  loadSkillFromDirectory,
+  loadSkillFromZip,
+  loadSkillFromUrl,
+  loadSkillFromClawHub,
+  writeImportedSkill,
+  SkillHubRegistryClient,
+} from 'agentic-decision';
+```
+
+### Portable skill types
+
+```ts
+interface ImportedSkill {
+  id: string;
+  description: string;
+  instructions: string;
+  source: ImportedSkillSource;
+  resources: readonly SkillResource[];
+  license?: string;
+  compatibility?: string;
+  metadata?: Readonly<Record<string, unknown>>;
+  allowedTools?: readonly string[];
+  diagnostics?: readonly string[];
+}
+
+type SkillSource =
+  | { kind: 'directory'; path: string }
+  | { kind: 'zip'; path: string }
+  | { kind: 'url'; url: string; headers?: Readonly<Record<string, string>>; timeoutMs?: number }
+  | { kind: 'clawhub'; url: string; headers?: Readonly<Record<string, string>>; timeoutMs?: number };
+```
+
+### What is parsed from `SKILL.md`
+
+The importer reads:
+
+- YAML frontmatter
+- Markdown body
+
+Mappings:
+
+- `name` -> `id` (normalized)
+- `description` -> `description`
+- Markdown body -> `instructions`
+
+Preserved optional metadata:
+
+- `license`
+- `compatibility`
+- `metadata`
+- `allowed-tools` -> `allowedTools`
+
+The parser is intentionally lenient for compatibility:
+
+- it tolerates common YAML mistakes when possible
+- it emits diagnostics when it had to recover
+- it throws only when the file is irrecoverable or no usable description exists
+
+### Local directory
+
+```ts
+const imported = await loadSkillFromDirectory('/absolute/path/to/portable-skill');
+console.log(imported.id, imported.resources);
+```
+
+### Local ZIP
+
+```ts
+const imported = await loadSkillFromZip('/tmp/release-review.zip');
+```
+
+### Generic remote URL
+
+The URL may point directly to:
+
+- a raw `SKILL.md`
+- a ZIP bundle
+- a supported page that embeds portable skill content
+
+```ts
+const imported = await loadSkillFromUrl('https://example.com/skills/release-review.zip');
+```
+
+### ClawHub import
+
+ClawHub is supported for explicit page/ZIP import.
+In v1, the loader resolves the page download link in a controlled way.
+
+```ts
+const imported = await loadSkillFromClawHub(
+  'https://clawhub.ai/skills/release-review',
 );
 ```
 
----
+### SkillHub search and import
 
-## Event hooks
+SkillHub catalog access uses an explicit API key.
 
-```typescript
-orchestrator
-  .on('decisionStart',     ({ sessionId, userId, prompt })     => void)
-  .on('agentTurn',         ({ sessionId, action, confidence }) => void)
-  .on('userReply',         ({ sessionId, message })            => void)
-  .on('decisionFinalized', ({ sessionId, decision })           => void)
-  .on('error',             ({ sessionId, error, phase })       => void);
-```
-
----
-
-## Zod schema — decision value
-
-The `schema` parameter defines the TypeScript type and runtime validation of `decision.value`.
-The agent is instructed to produce a `finalize.value` matching this schema.
-
-```typescript
-import { z } from 'zod';
-
-// Simple approval
-const schema = z.object({
-  approved: z.boolean(),
-  reason:   z.string().optional(),
+```ts
+const registry = new SkillHubRegistryClient({
+  apiKey: process.env.SKILLHUB_API_KEY!,
 });
 
-// Ticket triage
-const schema = z.object({
-  priority: z.enum(['low', 'medium', 'high', 'critical']),
-  owner:    z.string(),
-  notes:    z.string().max(500).optional(),
-});
+const matches = await registry.search({ query: 'release review', limit: 5 });
+const catalog = await registry.browse({ limit: 20, sort: 'recent' });
 
-// Free-form with discriminated union
-const schema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('approved'), signedBy: z.string() }),
-  z.object({ type: z.literal('rejected'), reason:   z.string() }),
-]);
+const first = matches[0];
+if (first?.pageUrl) {
+  const imported = await loadSkillFromUrl(first.pageUrl);
+  console.log(imported.id);
+}
 ```
 
----
+### Persist an imported skill explicitly
 
-## Cost tracking
+The library never writes imported skills automatically.
+If the host wants to persist one, it must choose the target directory explicitly.
 
-```typescript
-import { CostTracker } from 'agentic-decision';
-
-const costTracker = new CostTracker();
-const orchestrator = new DecisionOrchestrator({ ..., costTracker });
-
-// After decision:
-console.log(costTracker.snapshot()); // { totalUsd: 0.00042, calls: 4 }
-// Also available on decision:
-console.log(decision.costUsd);
+```ts
+const imported = await loadSkillFromUrl('https://example.com/skills/release-review.zip');
+await writeImportedSkill(imported, '/explicit/target/directory');
 ```
 
----
+### Use imported skills in the orchestrator
 
-## ConfidenceGate — tuning auto-finalize
-
-```typescript
-import { ConfidenceGate } from 'agentic-decision';
-
-const gate = new ConfidenceGate({
-  autoFinalizeThreshold: 0.98,   // skip confirmation at this confidence
-  minConfirmThreshold:   0.6,    // below this, ask more questions
-});
-
-const orchestrator = new DecisionOrchestrator({ ..., gate });
-```
-
----
-
-## Logger
-
-```typescript
-import { createLogger } from 'agentic-decision';
-
-const logger = createLogger({
-  level:   'info',   // 'debug' | 'info' | 'warn' | 'error'
-  pretty:  true,     // human-readable output (dev only)
-  name:    'my-app',
-});
-```
-
-PII fields automatically redacted: `userId`, `externalUserId`, `phone`, `email`, `apiKey`, `authorization`, message text.
-
----
-
-## Security patterns
-
-- Always cast SDK clients through `as unknown as OpenAILike` / `as unknown as AnthropicLike` etc. (structural interfaces).
-- Never put user-controlled strings directly in `systemPrompt` — the guard handles isolation.
-- Validate `decision.value` with your own business rules after it resolves — the agent is not a trusted source.
-- Set `userReplyTimeoutMs` explicitly — default 10 min may be too long for your use case.
-
----
-
-## Common errors
-
-| Error | Cause | Fix |
-|---|---|---|
-| `No messaging provider registered for channel "X"` | `channel` in `startDecision` doesn't match any provider's `.name` | Check `provider.name` vs `channel` field |
-| `Active session already running for X:Y` | `startDecision` called twice for same user before first resolves | Await or check before launching |
-| `AllProvidersFailedError` | All LLM providers in FallbackChain failed | Check API keys and network |
-| `TimeoutError: waitForReply` | User didn't reply within `userReplyTimeoutMs` | Increase timeout or handle `status: 'timeout'` |
-| `OutputValidationError` after 3 repair attempts | Model consistently produces malformed JSON | Try a more capable model or simplify your Zod schema |
-
----
-
-## Full minimal example
-
-```typescript
-import { z } from 'zod';
-import OpenAI from 'openai';
-import { DecisionOrchestrator, OpenAIProvider, ConsoleProvider, type OpenAILike } from 'agentic-decision';
-
+```ts
 const orchestrator = new DecisionOrchestrator({
-  llm:      new OpenAIProvider({ client: new OpenAI() as unknown as OpenAILike }),
-  messaging: [new ConsoleProvider({ externalUserId: 'user' })],
-  userReplyTimeoutMs: 60_000,
+  llm,
+  messaging: [consoleProvider],
+  skillSources: [
+    { kind: 'directory', path: '/skills/release-review' },
+    { kind: 'clawhub', url: 'https://clawhub.ai/skills/release-review' },
+  ],
 });
 
 const decision = await orchestrator.startDecision({
-  prompt:         'Help the user pick a deployment strategy for their app.',
-  userId:         'dev-1',
-  channel:        'console',
-  externalUserId: 'user',
-  schema: z.object({
-    strategy: z.enum(['blue-green', 'canary', 'rolling', 'recreate']),
-    rationale: z.string(),
-  }),
+  prompt: 'Review tonight\'s deployment.',
+  userId: 'release-manager',
+  channel: 'console',
+  externalUserId: 'local-user',
+  schema: ApprovalSchema,
+  skillIds: ['portable-release-review'],
 });
-
-if (decision.status === 'finalized') {
-  console.log('Chosen strategy:', decision.value?.strategy);
-}
-
-await orchestrator.stop();
 ```
+
+Runtime behavior:
+
+- `DecisionOrchestrator.start()` resolves `skillSources` asynchronously
+- imported skills are merged with static `skills`
+- duplicate ids fail deterministically
+- imported skills participate in the existing `skillIds` activation flow
+- only active skills are injected into the prompt
+- imported skills add compact `source`, `compatibility`, and resource inventory context to the prompt
+
+### Security policy for imported skills
+
+This is the intended v1 safety model:
+
+- remote imports are opt-in only
+- the runtime never downloads skills based on prompt matching
+- bundled `scripts/`, `references/`, and `assets/` are inventory, not implicit permissions
+- `allowed-tools` is informational metadata only
+- imported `allowedTools` is not auto-mapped to `allowedActionIds`
+- no remote scripts or install commands are executed automatically
+- ZIP paths are sanitized to block traversal
+
+---
+
+## Persistence and rehydration
+
+Bundled stores:
+
+- `InMemoryStateStore`
+- `RedisStateStore`
+
+Use `rehydrator` when an active session may survive a restart:
+
+```ts
+const orchestrator = new DecisionOrchestrator({
+  llm,
+  messaging: [consoleProvider],
+  store: redisStore,
+  rehydrator: async (session) => {
+    if (session.metadata?.workflow === 'release-review') {
+      return { schema: ApprovalSchema };
+    }
+    return null;
+  },
+});
+```
+
+Behavior:
+
+- stored active sessions are reloaded during `start()`
+- the `rehydrator` decides which schema to reattach
+- if rehydration is impossible, the stale session is aborted instead of staying locked forever
+
+---
+
+## Reliability, validation, and safety
+
+Built-in exports include:
+
+- `ConfidenceGate`
+- `CostTracker`
+- `retry`
+- `withTimeout`
+- `CircuitBreaker`
+- `InputSanitizer`
+- `PromptGuard`
+- `OutputValidator`
+- `sanitizeErrorMessage`
+
+Default behavior:
+
+- invalid model JSON triggers a repair loop
+- final payloads must pass your Zod schema
+- user text is wrapped in `<user_input>...</user_input>`
+- low-confidence proposals require follow-up or confirmation
+- sessions time out if the user never replies
+
+---
+
+## Repository demos
+
+Examples in this repository:
+
+- `pnpm demo:local`
+- `pnpm demo:actions`
+- `pnpm demo:imported-skill`
+- `pnpm demo:telegram`
+- `pnpm demo:fallback`
+- `pnpm demo:whatsapp`
+
+`demo:imported-skill` is the simplest example of a portable skill loaded through `skillSources` and activated through `skillIds`.

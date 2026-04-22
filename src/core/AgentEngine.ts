@@ -574,8 +574,18 @@ const describeSkills = (skills: readonly SkillDefinition[]): string => {
       [
         `- ${skill.id}: ${skill.description}`,
         `  Instructions: ${skill.instructions}`,
+        skill.source
+          ? `  Source: ${skill.source.kind} (${skill.source.pageUrl ?? skill.source.locator})`
+          : undefined,
+        skill.compatibility ? `  Compatibility: ${skill.compatibility}` : undefined,
+        skill.resources?.length
+          ? `  Resources: ${summarizeSkillResources(skill.resources)}`
+          : undefined,
         skill.preferredActionIds?.length
           ? `  Preferred actions: ${skill.preferredActionIds.join(', ')}`
+          : undefined,
+        skill.allowedTools?.length
+          ? `  Allowed tools metadata: ${skill.allowedTools.join(', ')}`
           : undefined,
         skill.examples?.length ? `  Examples: ${skill.examples.join(' | ')}` : undefined,
       ]
@@ -583,6 +593,14 @@ const describeSkills = (skills: readonly SkillDefinition[]): string => {
         .join('\n'),
     ),
   ].join('\n');
+};
+
+const summarizeSkillResources = (resources: readonly NonNullable<SkillDefinition['resources']>[number][]): string => {
+  const preview = resources
+    .slice(0, 6)
+    .map((resource) => `${resource.kind}:${resource.path}`);
+  const suffix = resources.length > 6 ? ` (+${resources.length - 6} more)` : '';
+  return `${preview.join(', ')}${suffix}`;
 };
 
 const describeActions = (actions: readonly ActionDefinition[]): string => {

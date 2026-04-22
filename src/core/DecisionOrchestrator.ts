@@ -14,6 +14,8 @@ import type { Decision } from '../types/Decision.js';
 import type { SessionState } from '../types/Session.js';
 import { newSessionId } from '../utils/id.js';
 import { describeSchema } from '../utils/schemaDescription.js';
+import { loadSkillFromSource } from '../skills/SkillImporter.js';
+import type { ImportedSkill, SkillSource } from '../skills/SkillTypes.js';
 import { AgentEngine } from './AgentEngine.js';
 import { ConfidenceGate } from './ConfidenceGate.js';
 import { SessionManager } from './SessionManager.js';
@@ -33,6 +35,7 @@ export interface OrchestratorOptions {
   readonly llm: LLMProvider;
   readonly messaging: readonly MessagingProvider[];
   readonly skills?: readonly SkillDefinition[];
+  readonly skillSources?: readonly SkillSource[];
   readonly actions?: readonly ActionDefinition[];
   readonly store?: StateStore;
   readonly logger?: Logger;
@@ -69,9 +72,14 @@ export class DecisionOrchestrator {
   readonly costTracker: CostTracker;
   private readonly store: StateStore;
   private readonly sessions: SessionManager;
-  private readonly skillRegistry: ReadonlyMap<string, SkillDefinition>;
+  private readonly staticSkills: readonly SkillDefinition[];
+  private readonly skillSources: readonly SkillSource[];
+  private readonly importedSkills = new Map<string, ImportedSkill>();
+  private skillRegistry: ReadonlyMap<string, SkillDefinition>;
   private readonly actionRegistry: ReadonlyMap<string, ActionDefinition>;
   private readonly activeRuns = new Set<string>();
+  private skillSourcesLoaded = false;
+  private skillSourceLoad?: Promise<void>;
   private started = false;
 
   constructor(private readonly opts: OrchestratorOptions) {
@@ -79,7 +87,9 @@ export class DecisionOrchestrator {
     this.events = opts.events ?? new TypedEmitter();
     this.costTracker = opts.costTracker ?? new CostTracker();
     this.store = opts.store ?? new InMemoryStateStore();
-    this.skillRegistry = buildRegistry(opts.skills ?? [], 'skill');
+    this.staticSkills = opts.skills ?? [];
+    this.skillSources = opts.skillSources ?? [];
+    this.skillRegistry = buildRegistry(this.staticSkills, 'skill');
     this.actionRegistry = buildRegistry(opts.actions ?? [], 'action');
     validateSkillReferences(this.skillRegistry, this.actionRegistry);
     this.sessions = new SessionManager(this.store);
@@ -94,6 +104,7 @@ export class DecisionOrchestrator {
   async start(): Promise<void> {
     if (this.started) return;
 
+    await this.ensureSkillSourcesLoaded();
     this.sessions.restoreProviderRoutes();
     const activeSessions = await this.sessions.rehydrate();
     await Promise.all(this.opts.messaging.map((provider) => provider.start()));
@@ -172,6 +183,30 @@ export class DecisionOrchestrator {
       }
       throw error;
     }
+  }
+
+  private async ensureSkillSourcesLoaded(): Promise<void> {
+    if (this.skillSourcesLoaded || this.skillSources.length === 0) {
+      this.skillSourcesLoaded = true;
+      return;
+    }
+    if (!this.skillSourceLoad) {
+      this.skillSourceLoad = this.loadSkillSources();
+    }
+    await this.skillSourceLoad;
+  }
+
+  private async loadSkillSources(): Promise<void> {
+    const imported = await Promise.all(this.skillSources.map((source) => loadSkillFromSource(source)));
+    const merged = [...this.staticSkills, ...imported];
+    this.skillRegistry = buildRegistry(merged, 'skill');
+    validateSkillReferences(this.skillRegistry, this.actionRegistry);
+
+    this.importedSkills.clear();
+    for (const skill of imported) {
+      this.importedSkills.set(skill.id, skill);
+    }
+    this.skillSourcesLoaded = true;
   }
 
   private async resumeStoredSessions(states: readonly SessionState[]): Promise<void> {

@@ -37,6 +37,7 @@
     "dev": "tsup --watch",
     "demo:local": "node --import tsx examples/local-console.ts",
     "demo:actions": "node --import tsx examples/local-actions-console.ts",
+    "demo:imported-skill": "node --import tsx examples/imported-skill-console.ts",
     "demo:telegram": "node --env-file=.env --import tsx examples/basic-telegram.ts",
     "demo:fallback": "node --env-file=.env --import tsx examples/multi-provider-fallback.ts",
     "demo:whatsapp": "node --env-file=.env --import tsx examples/whatsapp-stub.ts",
@@ -64,8 +65,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "jszip": "^3.10.1",
     "nanoid": "^5.0.7",
     "pino": "^9.5.0",
+    "yaml": "^2.8.3",
     "zod": "^3.23.8"
   },
   "peerDependencies": {

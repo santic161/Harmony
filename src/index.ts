@@ -85,6 +85,31 @@ export type {
   ShellActionDefinition,
   SkillDefinition,
 } from './actions/ActionDefinitions.js';
+export {
+  loadSkillFromClawHub,
+  loadSkillFromDirectory,
+  loadSkillFromSource,
+  loadSkillFromUrl,
+  loadSkillFromZip,
+  writeImportedSkill,
+} from './skills/SkillImporter.js';
+export { SkillHubRegistryClient } from './skills/SkillHubRegistryClient.js';
+export type {
+  ClawHubSkillSource,
+  DirectorySkillSource,
+  ImportedSkill,
+  ImportedSkillSource,
+  RemoteSkillLoadOptions,
+  SkillHubBrowseOptions,
+  SkillHubRegistryClientOptions,
+  SkillHubRegistryEntry,
+  SkillHubSearchOptions,
+  SkillResource,
+  SkillResourceKind,
+  SkillSource,
+  UrlSkillSource,
+  ZipSkillSource,
+} from './skills/SkillTypes.js';
 
 export { retry, DEFAULT_RETRY } from './reliability/Retry.js';
 export type { RetryOptions } from './reliability/Retry.js';

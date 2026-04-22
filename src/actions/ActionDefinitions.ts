@@ -1,5 +1,6 @@
 import { z, type ZodTypeAny } from 'zod';
 import type { Logger } from '../observability/Logger.js';
+import type { ImportedSkillSource, SkillResource } from '../skills/SkillTypes.js';
 
 export interface SkillDefinition {
   readonly id: string;
@@ -7,6 +8,13 @@ export interface SkillDefinition {
   readonly instructions: string;
   readonly preferredActionIds?: readonly string[];
   readonly examples?: readonly string[];
+  readonly source?: ImportedSkillSource;
+  readonly resources?: readonly SkillResource[];
+  readonly license?: string;
+  readonly compatibility?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly allowedTools?: readonly string[];
+  readonly diagnostics?: readonly string[];
 }
 
 export interface ActionExecutionContext {

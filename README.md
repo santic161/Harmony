@@ -47,6 +47,7 @@ Most LLM integrations stop at "prompt in, JSON out". Real decision workflows are
 - Async human replies over `console`, Telegram, WhatsApp Web, or a custom provider
 - Zod-validated final payloads with automatic JSON repair loops
 - Contextual `skills` to steer the model only when relevant
+- Portable skill import from local directories, ZIPs, generic URLs, SkillHub, and ClawHub
 - Controlled `actions` with allow-by-id execution
 - Safe-by-default shell actions with minimal inherited environment variables
 - Prompt-injection screening, input sanitization, and error redaction utilities
@@ -179,6 +180,7 @@ This repository ships with local demos so you can verify the orchestration flow 
 pnpm install
 pnpm demo:local
 pnpm demo:actions
+pnpm demo:imported-skill
 ```
 
 ## Core Concepts
@@ -214,6 +216,93 @@ That lets you keep a rich runtime available without giving every workflow the sa
 - the confidence gate allows automatic finalization
 
 The final payload must still pass your Zod schema before the promise resolves.
+
+## Portable / Registry Skills
+
+Static `skills` still work exactly as before, but you can now also import portable `SKILL.md` bundles through `skillSources`.
+
+Supported source kinds in v1:
+
+- local directory
+- local ZIP
+- generic remote URL
+- ClawHub page or ZIP
+
+Imported skills are still host-controlled. The model does not discover or download them automatically, and they only become active for a decision when you opt in through `skillIds`.
+
+### Load a local portable skill
+
+```ts
+import { DecisionOrchestrator } from 'agentic-decision';
+
+const orchestrator = new DecisionOrchestrator({
+  llm,
+  messaging: [consoleProvider],
+  skillSources: [
+    {
+      kind: 'directory',
+      path: '/absolute/path/to/portable-skill',
+    },
+  ],
+});
+
+await orchestrator.startDecision({
+  prompt: 'Review tonight\'s deployment.',
+  userId: 'release-manager',
+  channel: 'console',
+  externalUserId: 'local-user',
+  schema: ApprovalSchema,
+  skillIds: ['portable-release-review'],
+});
+```
+
+### Import helpers
+
+You can also import skills yourself before wiring them into the orchestrator:
+
+```ts
+import {
+  loadSkillFromClawHub,
+  loadSkillFromDirectory,
+  loadSkillFromUrl,
+  loadSkillFromZip,
+  writeImportedSkill,
+} from 'agentic-decision';
+
+const localSkill = await loadSkillFromDirectory('/skills/release-review');
+const zipSkill = await loadSkillFromZip('/tmp/release-review.zip');
+const remoteSkill = await loadSkillFromUrl('https://example.com/skills/release-review.zip');
+const clawHubSkill = await loadSkillFromClawHub('https://clawhub.ai/skills/release-review');
+
+await writeImportedSkill(remoteSkill, '/explicit/output/directory');
+```
+
+### SkillHub catalog search
+
+SkillHub catalog access is explicit and API-key based:
+
+```ts
+import { SkillHubRegistryClient, loadSkillFromUrl } from 'agentic-decision';
+
+const registry = new SkillHubRegistryClient({
+  apiKey: process.env.SKILLHUB_API_KEY!,
+});
+
+const matches = await registry.search({ query: 'release review', limit: 5 });
+const first = matches[0];
+if (first?.pageUrl) {
+  const imported = await loadSkillFromUrl(first.pageUrl);
+  console.log(imported.id, imported.description);
+}
+```
+
+### Security policy for imported skills
+
+- remote imports are opt-in only
+- the runtime never downloads a skill because the prompt asked for it
+- bundled `scripts/`, `references/`, and `assets/` are exposed as resource inventory, not executable permissions
+- `allowed-tools` is preserved as metadata only and is not auto-mapped to `allowedActionIds`
+- `writeImportedSkill()` writes only when the host application chooses an explicit target directory
 
 ## Controlled Actions
 
@@ -349,6 +438,19 @@ const orchestrator = new DecisionOrchestrator({
 
 If the process restarts and a stored session cannot be rehydrated, the library now aborts that stale active session instead of leaving it permanently locked.
 
+### Decision usage and cost metadata
+
+`Decision<T>` includes both a coarse `costUsd` total and a structured `usage` summary when the underlying provider returns token accounting:
+
+```ts
+const decision = await orchestrator.startDecision({ ... });
+
+console.log(decision.status);
+console.log(decision.costUsd);
+console.log(decision.usage?.totalTokens);
+console.log(decision.usage?.calls);
+```
+
 ## Security Model
 
 This library is designed to reduce common agent-runtime failure modes, not eliminate the need for application-level review.
@@ -361,12 +463,14 @@ This library is designed to reduce common agent-runtime failure modes, not elimi
 - `ActionExecutor` uses fixed commands plus validated args, not model-generated shell text
 - `createLogger()` redacts common identity and credential fields by default
 - `sanitizeErrorMessage()` scrubs common secrets from logged error text
+- imported skills are data-only context unless your host explicitly turns their resources into runtime actions
 
 ### What you should still assume
 
 - finalized LLM output is still untrusted application input
 - handler actions are trusted code and should be written defensively
 - shell actions should be narrow, auditable, and explicitly allowlisted per decision
+- imported skill bundles may come from untrusted sources and should be treated as content, not executable code
 - business rules still belong in your application, not only in the model prompt
 
 ## Reliability Defaults
@@ -397,6 +501,29 @@ orchestrator.start(): Promise<void>
 orchestrator.stop(): Promise<void>
 orchestrator.startDecision<T>(request: StartDecisionRequest<T>): Promise<Decision<T>>
 orchestrator.on(event, listener): this
+```
+
+### `OrchestratorOptions`
+
+```ts
+interface OrchestratorOptions {
+  llm: LLMProvider;
+  messaging: readonly MessagingProvider[];
+  skills?: readonly SkillDefinition[];
+  skillSources?: readonly SkillSource[];
+  actions?: readonly ActionDefinition[];
+  store?: StateStore;
+  rehydrator?: SessionRehydrator;
+  logger?: Logger;
+  costTracker?: CostTracker;
+  gate?: ConfidenceGate;
+  systemPrompt?: string;
+  maxTurns?: number;
+  userReplyTimeoutMs?: number;
+  llmTimeoutMs?: number;
+  llmTemperature?: number;
+  llmMaxTokens?: number;
+}
 ```
 
 ### `StartDecisionRequest<T>`
@@ -442,6 +569,7 @@ interface Decision<T> {
 | --- | --- |
 | `pnpm demo:local` | Local console flow with a rule-based provider and no API keys |
 | `pnpm demo:actions` | Console flow that exercises skills, controlled actions, and confirmation |
+| `pnpm demo:imported-skill` | Console flow that loads a portable skill from `examples/data/portable-skills` via `skillSources` |
 | `pnpm demo:telegram` | Telegram + OpenAI example using `.env` |
 | `pnpm demo:fallback` | Console workflow with multi-provider fallback |
 | `pnpm demo:whatsapp` | WhatsApp stub workflow that shows how to bridge your own client |
