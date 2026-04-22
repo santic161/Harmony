@@ -1,0 +1,24 @@
+{
+  "drafts": [
+    {
+      "id": "launch-linkedin-1",
+      "templateId": "product-launch-linkedin",
+      "label": "LinkedIn launch note",
+      "channel": "LinkedIn",
+      "audience": "Operations and growth leads",
+      "body": "Approvals should not die in a spreadsheet tab. We just moved our review loop into WhatsApp so a post can be requested, reviewed, and signed off in the same place the team already responds.\n\nThe first version is intentionally small: one draft, one clear decision, one local audit trail. That tiny workflow is enough to make the demo feel real because every reply now leaves a trace we can inspect later.",
+      "cta": "Comment \"demo\" if you want the walkthrough or a copy of the sample workflow.",
+      "hashtags": ["#whatsapp", "#nodejs", "#automation", "#agentic"]
+    },
+    {
+      "id": "customer-story-x-1",
+      "templateId": "customer-story-shortform",
+      "label": "Short X/Twitter customer proof",
+      "channel": "X",
+      "audience": "Builders shipping internal tools",
+      "body": "We replaced a fake approval button with a real WhatsApp loop. Draft goes out, reviewer replies approve/edit/reject, and the final decision lands in a local file the team can inspect.\n\nSmall demos become credible the moment the workflow survives contact with an actual human reply.",
+      "cta": "Want the repo diff? Reply and I will share the implementation notes.",
+      "hashtags": ["#buildinpublic", "#whatsappbot", "#typescript"]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+export {
+  LocalApprovalDecisionStore,
+  buildDecisionConfirmation,
+  buildDraftMenu,
+  buildDraftMessage,
+  createDecisionRecord,
+  loadDraftCatalog,
+  parseReviewReply,
+  resolveDraftSelection,
+  type ApprovalDecisionRecord,
+  type ApprovalStoreState,
+  type ParsedReviewReply,
+  type PostDraft,
+  type ReviewOutcome,
+} from '../../src/demo-support/approvalDemo.js';
