@@ -8,3 +8,4 @@ coverage
 .wwebjs_auth
 .wwebjs_cache
 examples/data/*.local.json
+pnpm-lock.yaml

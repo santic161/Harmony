@@ -75,7 +75,7 @@
     "telegram",
     "whatsapp"
   ],
-  "author": "",
+  "author": "Santino Canteli",
   "license": "MIT",
   "dependencies": {
     "jszip": "^3.10.1",
