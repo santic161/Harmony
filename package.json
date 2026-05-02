@@ -1,6 +1,6 @@
 {
   "name": "harmony-agentic-decisions",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "harmony-agentic-decisions. Production-grade human-in-the-loop decision workflows with LLMs and messaging channels.",
   "type": "module",
   "main": "./dist/index.js",
