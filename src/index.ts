@@ -5,11 +5,11 @@ export type {
   SessionRehydrator,
   StartDecisionRequest,
 } from './core/DecisionOrchestrator.js';
-/** @deprecated Internal API. Import from `agentic-decision/internal` instead. */
+/** @deprecated Internal API. Import from `harmony-agentic-decisions/internal` instead. */
 export { AgentEngine } from './core/AgentEngine.js';
-/** @deprecated Internal API. Import from `agentic-decision/internal` instead. */
+/** @deprecated Internal API. Import from `harmony-agentic-decisions/internal` instead. */
 export type { AgentEngineOptions } from './core/AgentEngine.js';
-/** @deprecated Internal API. Import from `agentic-decision/internal` instead. */
+/** @deprecated Internal API. Import from `harmony-agentic-decisions/internal` instead. */
 export { SessionManager } from './core/SessionManager.js';
 export { ConfidenceGate, DEFAULT_GATE } from './core/ConfidenceGate.js';
 export type { ConfidenceGateOptions, GateDecision } from './core/ConfidenceGate.js';
@@ -141,9 +141,9 @@ export type {
 } from './types/Message.js';
 export { toBufferedInboundMessage } from './types/Message.js';
 
-/** @deprecated Internal API. Import from `agentic-decision/internal` instead. */
+/** @deprecated Internal API. Import from `harmony-agentic-decisions/internal` instead. */
 export { AgentActionSchema } from './utils/schemas.js';
-/** @deprecated Internal API. Import from `agentic-decision/internal` instead. */
+/** @deprecated Internal API. Import from `harmony-agentic-decisions/internal` instead. */
 export type { AgentAction } from './utils/schemas.js';
-/** @deprecated Internal API. Import from `agentic-decision/internal` instead. */
+/** @deprecated Internal API. Import from `harmony-agentic-decisions/internal` instead. */
 export { newSessionId } from './utils/id.js';

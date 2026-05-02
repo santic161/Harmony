@@ -44,7 +44,7 @@ const errorSerializer = (err: unknown): unknown => {
 export const createLogger = (opts: CreateLoggerOptions = {}): Logger => {
   const base: LoggerOptions = {
     level: opts.level ?? process.env['LOG_LEVEL'] ?? 'info',
-    name: opts.name ?? 'agentic-decision',
+    name: opts.name ?? 'harmony-agentic-decisions',
     redact: { paths: REDACT_PATHS, censor: '[REDACTED]' },
     serializers: { err: errorSerializer, error: errorSerializer },
   };

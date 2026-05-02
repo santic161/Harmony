@@ -1,5 +1,5 @@
 /**
- * WhatsApp Workflow Assistant — powered by agentic-decision + whatsapp-web.js.
+ * WhatsApp Workflow Assistant — powered by Harmony + whatsapp-web.js.
  *
  * A structured assistant that guides users through a workflow via WhatsApp.
  * The agent asks one question at a time, gathers context, and produces a
@@ -11,7 +11,7 @@
  *
  * Optional env:
  *   GEMINI_MODEL=gemini-2.0-flash
- *   WHATSAPP_SESSION_NAME=agentic-decision-demo
+ *   WHATSAPP_SESSION_NAME=harmony-demo
  *   WHATSAPP_AUTH_DIR=.wwebjs_auth
  *   WHATSAPP_HEADLESS=false
  *   PUPPETEER_EXECUTABLE_PATH=/path/to/chrome
@@ -50,7 +50,7 @@ if (!GOOGLE_API_KEY) throw new Error("Missing GOOGLE_API_KEY");
 
 const GEMINI_MODEL = process.env["GEMINI_MODEL"] ?? "gemini-2.0-flash";
 const WHATSAPP_SESSION_NAME =
-  process.env["WHATSAPP_SESSION_NAME"] ?? "agentic-decision-demo";
+  process.env["WHATSAPP_SESSION_NAME"] ?? "harmony-demo";
 const WHATSAPP_AUTH_DIR = process.env["WHATSAPP_AUTH_DIR"] ?? ".wwebjs_auth";
 const WHATSAPP_HEADLESS = parseBoolean(process.env["WHATSAPP_HEADLESS"], false);
 const PUPPETEER_EXECUTABLE_PATH = process.env["PUPPETEER_EXECUTABLE_PATH"];

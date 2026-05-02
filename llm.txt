@@ -1,6 +1,6 @@
-# agentic-decision — LLM Integration Reference
+# harmony-agentic-decisions — LLM Integration Reference
 
-Use this file as compact context when generating code against `agentic-decision`.
+Use this file as compact context when generating code against `harmony-agentic-decisions`.
 It reflects the public API exported by the package, including:
 
 - `DecisionOrchestrator`
@@ -15,7 +15,7 @@ It reflects the public API exported by the package, including:
 
 ## What the library does
 
-`agentic-decision` runs multi-turn LLM decision loops that can:
+`harmony-agentic-decisions` runs multi-turn LLM decision loops that can:
 
 - ask a real person follow-up questions over a messaging channel
 - call a host-defined set of runtime actions
@@ -40,7 +40,7 @@ It must stay inside the strict agent action protocol:
 ## Install
 
 ```bash
-pnpm add agentic-decision
+pnpm add harmony-agentic-decisions
 ```
 
 Add only the optional peer dependencies you actually use:
@@ -96,7 +96,7 @@ interface Decision<T> {
 ## Main class
 
 ```ts
-import { DecisionOrchestrator } from 'agentic-decision';
+import { DecisionOrchestrator } from 'harmony-agentic-decisions';
 
 const orchestrator = new DecisionOrchestrator(options);
 await orchestrator.start();
@@ -179,7 +179,7 @@ import {
   DecisionOrchestrator,
   OpenAIProvider,
   type OpenAILike,
-} from 'agentic-decision';
+} from 'harmony-agentic-decisions';
 
 const ApprovalSchema = z.object({
   approved: z.boolean(),
@@ -234,7 +234,7 @@ Example:
 
 ```ts
 import OpenAI from 'openai';
-import { OpenAIProvider, type OpenAILike } from 'agentic-decision';
+import { OpenAIProvider, type OpenAILike } from 'harmony-agentic-decisions';
 
 const llm = new OpenAIProvider({
   client: new OpenAI({ apiKey: process.env.OPENAI_API_KEY! }) as unknown as OpenAILike,
@@ -245,7 +245,7 @@ const llm = new OpenAIProvider({
 Fallback example:
 
 ```ts
-import { FallbackChain } from 'agentic-decision';
+import { FallbackChain } from 'harmony-agentic-decisions';
 
 const llm = new FallbackChain({
   providers: [openaiProvider, anthropicProvider, geminiProvider],
@@ -283,7 +283,7 @@ Use this when you have a real `whatsapp-web.js`-compatible client:
 
 ```ts
 import { Client, LocalAuth } from 'whatsapp-web.js';
-import { WhatsAppWebProvider } from 'agentic-decision';
+import { WhatsAppWebProvider } from 'harmony-agentic-decisions';
 
 const client = new Client({ authStrategy: new LocalAuth() });
 
@@ -299,7 +299,7 @@ const whatsapp = new WhatsAppWebProvider({
 Use this when you want a light adapter for tests, demos, or your own message bridge:
 
 ```ts
-import { WhatsAppStubProvider } from 'agentic-decision';
+import { WhatsAppStubProvider } from 'harmony-agentic-decisions';
 
 const whatsapp = new WhatsAppStubProvider({
   sendHook: async (to, msg) => {
@@ -414,7 +414,7 @@ import {
   loadSkillFromClawHub,
   writeImportedSkill,
   SkillHubRegistryClient,
-} from 'agentic-decision';
+} from 'harmony-agentic-decisions';
 ```
 
 ### Portable skill types

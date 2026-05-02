@@ -34,7 +34,7 @@ import {
 } from './support/approvalDemo.js';
 
 const WHATSAPP_SESSION_NAME =
-  process.env['WHATSAPP_SESSION_NAME'] ?? 'agentic-decision-approval-demo';
+  process.env['WHATSAPP_SESSION_NAME'] ?? 'harmony-approval-demo';
 const WHATSAPP_AUTH_DIR = process.env['WHATSAPP_AUTH_DIR'] ?? '.wwebjs_auth';
 const WHATSAPP_HEADLESS = parseBoolean(process.env['WHATSAPP_HEADLESS'], false);
 const PUPPETEER_EXECUTABLE_PATH = process.env['PUPPETEER_EXECUTABLE_PATH'];

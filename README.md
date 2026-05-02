@@ -1,4 +1,8 @@
-# agentic-decision
+# Harmony - Agentic Decisions For Node.js Workflows
+
+<p align="center">
+  <img src="./assets/Logo.png" alt="Harmony logo" width="420">
+</p>
 
 <p align="center">
   <strong>Typed, production-oriented human-in-the-loop decision workflows for Node.js.</strong>
@@ -10,15 +14,49 @@
 </p>
 
 <p align="center">
+  <img alt="npm version" src="https://img.shields.io/npm/v/harmony-agentic-decisions?logo=npm&color=cb3837">
   <img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white">
-  <img alt="ESM only" src="https://img.shields.io/badge/module-ESM-1f6feb">
-  <img alt="TypeScript" src="https://img.shields.io/badge/types-TypeScript-3178c6?logo=typescript&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-Ready-3178c6?logo=typescript&logoColor=white">
+  <img alt="Agentic AI" src="https://img.shields.io/badge/Agentic%20AI-Enabled-7c3aed">
+  <img alt="Human in the loop" src="https://img.shields.io/badge/Human--in--the--loop-Async-0ea5e9">
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-16a34a">
 </p>
 
+## Index
+
+- [1. Why and Fit](#why-this-library-exists)
+  - [1.1 Compute Footprint (Harmony vs OpenClaw)](#compute-footprint-harmony-vs-openclaw)
+  - [1.2 Quick decision guide](#quick-decision-guide)
+    - [When to use Harmony](#when-to-use-harmony)
+    - [When not to use Harmony](#when-not-to-use-harmony)
+    - [Advantages](#advantages)
+    - [Trade-offs](#trade-offs)
+- [2. Fast Implementation Path](#quick-start)
+  - [2.1 Install](#install-)
+  - [2.2 `llm.txt` (recommended first)](#llmtxt-)
+  - [2.3 Quick Start](#quick-start)
+- [3. Product Overview](#highlights-)
+  - [Architecture](#architecture-)
+- [4. Workflow Model](#core-concepts)
+  - [Portable / Registry Skills](#portable--registry-skills)
+  - [Controlled Actions](#controlled-actions)
+  - [Messaging Channels](#messaging-channels)
+  - [LLM Providers](#llm-providers)
+  - [Persistence and Rehydration](#persistence-and-rehydration)
+  - [Security Model](#security-model)
+  - [Reliability Defaults](#reliability-defaults)
+- [5. API and Usage](#public-api)
+  - [Examples Included In This Repository](#examples-included-in-this-repository)
+  - [Internal Entry Point](#internal-entry-point)
+- [6. Project Lifecycle](#development)
+  - [Contributing](#contributing)
+  - [Opening Issues](#opening-issues)
+  - [Publishing](#publishing)
+  - [License](#license)
+
 ---
 
-`agentic-decision` is built for workflows where an LLM should not silently decide on its own.
+`harmony-agentic-decisions` is built for workflows where an LLM should not silently decide on its own.
 It gives you a runtime that can ask follow-up questions, collect replies over time, run a tightly
 controlled set of actions, and finalize only when the result passes your schema and confidence rules.
 
@@ -30,7 +68,7 @@ This is a better fit than a one-shot chat completion when you need things like:
 - content review loops
 - operational workflows that pause and resume across messaging channels
 
-## Why This Library Exists
+## Why This Library Exists 🎯
 
 Most LLM integrations stop at "prompt in, JSON out". Real decision workflows are messier:
 
@@ -39,9 +77,58 @@ Most LLM integrations stop at "prompt in, JSON out". Real decision workflows are
 - the runtime may need to inspect trusted context before proposing anything
 - the final value must match a strict schema before the application continues
 
-`agentic-decision` gives you that missing orchestration layer.
+Harmony gives you that missing orchestration layer.
 
-## Highlights
+## Compute Footprint (Harmony vs OpenClaw) ⚙️
+
+If your target is low-cost infrastructure (for example small DigitalOcean droplets), Harmony is optimized for lightweight Node.js orchestration and avoids browser/runtime-heavy defaults.
+
+The following values are practical deployment ranges (not vendor-official benchmarks) and should be validated in your own workload:
+
+| Profile | Harmony (this repo) | OpenClaw (typical full-agent setup) |
+| --- | --- | --- |
+| Typical runtime style | Pure Node orchestration + optional messaging adapters | Broader autonomous-agent runtime, commonly with heavier tool stacks |
+| Baseline RAM (idle process) | ~70-160 MB | ~220-700 MB (especially when browser/tool workers are enabled) |
+| CPU behavior | Usually bursty only during turns/actions | Higher sustained load when autonomous loops or browser automation run |
+| Packaging signal | npm pack unpacked size ~531.9 kB (dry-run) | Usually larger install/runtime surface depending on enabled modules |
+| Best fit | Approval and decision workflows with bounded actions | Broad autonomous workflows where larger runtime overhead is acceptable |
+
+### Practical droplet guidance 💡
+
+- `1 vCPU / 1 GB RAM`: Harmony is generally viable for low concurrency decision workflows.
+- `2 vCPU / 2 GB RAM`: comfortable headroom for Harmony with Redis + messaging adapters.
+- Prefer Harmony when you need predictable operational costs and controlled execution boundaries.
+- Prefer OpenClaw when you need broader autonomy and can afford higher memory/CPU budget.
+
+## Quick decision guide 🧭
+
+### When to use Harmony
+
+- ✅ You need human approval before critical actions (deployments, releases, incident responses)
+- ✅ You want typed final outputs with strict schema validation
+- ✅ You run Node.js services on small/medium VMs (like 1-2 vCPU droplets) and need predictable overhead
+- ✅ You need asynchronous messaging workflows (human replies later, session resumes safely)
+
+### When **not** to use Harmony
+
+- ⚠️ You only need single-shot prompt/response with no human-in-the-loop workflow
+- ⚠️ You need fully autonomous browser-heavy agents as your primary runtime model
+- ⚠️ You cannot define explicit allowlisted actions and prefer unrestricted tool execution
+
+### Advantages
+
+- 🧠 Typed orchestration and schema-gated finalization
+- 🔒 Controlled action execution (host-defined, model cannot invent raw shell commands)
+- 💸 Small runtime footprint and easy deployment in constrained Node environments
+- 🧩 Built-in reliability (timeouts, retries, circuit breakers, resumable sessions)
+
+### Trade-offs
+
+- 🛠️ More orchestration setup than plain chat completion calls
+- 📐 You must design actions and schemas thoughtfully for each workflow
+- 🎯 It is purpose-built for decision workflows, not a general unrestricted agent framework
+
+## Highlights ✨
 
 - Typed orchestration through `DecisionOrchestrator`
 - Async human replies over `console`, Telegram, WhatsApp Web, or a custom provider
@@ -56,7 +143,10 @@ Most LLM integrations stop at "prompt in, JSON out". Real decision workflows are
 - Rehydration support for resumable sessions after restart
 - `llm.txt` included in the published package for downstream codegen workflows
 
-## Architecture
+## Architecture 🏗️
+
+<details>
+<summary>Ver diagrama de arquitectura</summary>
 
 ```mermaid
 sequenceDiagram
@@ -85,15 +175,25 @@ sequenceDiagram
     end
 ```
 
-## Install
+</details>
+
+## Install 📦
 
 Install the package:
 
+<details>
+<summary>Ver comando de instalación</summary>
+
 ```bash
-pnpm add agentic-decision
+pnpm add harmony-agentic-decisions
 ```
 
+</details>
+
 Then add only the integrations you actually need:
+
+<details>
+<summary>Ver dependencias opcionales por integración</summary>
 
 ```bash
 # LLM providers
@@ -109,9 +209,24 @@ pnpm add whatsapp-web.js qrcode-terminal
 pnpm add ioredis
 ```
 
+</details>
+
+## `llm.txt` 🤖
+
+To implement faster, start with `llm.txt` right after install.
+It is a compact integration reference you can paste to another coding model to generate app-specific wiring.
+
+- Recommended flow: install package -> open/read `llm.txt` -> adapt Quick Start to your app
+- Best use: bootstrap orchestration, providers, and action contracts quickly
+
+When installed from npm, it is available at the package root and exported as `harmony-agentic-decisions/llm.txt`.
+
 ## Quick Start
 
 ### Minimal OpenAI + Console flow
+
+<details>
+<summary>Ver ejemplo mínimo OpenAI + Console</summary>
 
 ```ts
 import { z } from 'zod';
@@ -121,7 +236,7 @@ import {
   DecisionOrchestrator,
   OpenAIProvider,
   type OpenAILike,
-} from 'agentic-decision';
+} from 'harmony-agentic-decisions';
 
 const ApprovalSchema = z.object({
   approved: z.boolean(),
@@ -172,9 +287,14 @@ console.log(decision.status, decision.value);
 await orchestrator.stop();
 ```
 
+</details>
+
 ### Local demo with no API keys
 
 This repository ships with local demos so you can verify the orchestration flow before wiring a real model.
+
+<details>
+<summary>Ver comandos de demos locales</summary>
 
 ```bash
 pnpm install
@@ -183,11 +303,16 @@ pnpm demo:actions
 pnpm demo:imported-skill
 ```
 
+</details>
+
 ## Core Concepts
 
 ### 1. The LLM never executes arbitrary capabilities
 
 The model can only emit one of five actions:
+
+<details>
+<summary>Ver protocolo de acciones del modelo</summary>
 
 ```json
 { "action": "ask", "question": "...", "reasoning": "..." }
@@ -196,6 +321,8 @@ The model can only emit one of five actions:
 { "action": "finalize", "value": { "...": "..." }, "confidence": 0.97, "reasoning": "..." }
 { "action": "abort", "reason": "..." }
 ```
+
+</details>
 
 There are no raw shell commands in the model protocol. If you expose runtime capabilities, you do it by registering named actions up front.
 
@@ -210,14 +337,14 @@ That lets you keep a rich runtime available without giving every workflow the sa
 
 ### 3. Finalization is gated
 
-`agentic-decision` will not accept a `finalize` action unless:
+Harmony will not accept a `finalize` action unless:
 
 - the user explicitly confirmed the proposal, or
 - the confidence gate allows automatic finalization
 
 The final payload must still pass your Zod schema before the promise resolves.
 
-## Portable / Registry Skills
+## Portable / Registry Skills 🔌
 
 Static `skills` still work exactly as before, but you can now also import portable `SKILL.md` bundles through `skillSources`.
 
@@ -232,8 +359,11 @@ Imported skills are still host-controlled. The model does not discover or downlo
 
 ### Load a local portable skill
 
+<details>
+<summary>Ver carga de skill portable local</summary>
+
 ```ts
-import { DecisionOrchestrator } from 'agentic-decision';
+import { DecisionOrchestrator } from 'harmony-agentic-decisions';
 
 const orchestrator = new DecisionOrchestrator({
   llm,
@@ -256,9 +386,14 @@ await orchestrator.startDecision({
 });
 ```
 
+</details>
+
 ### Import helpers
 
 You can also import skills yourself before wiring them into the orchestrator:
+
+<details>
+<summary>Ver helpers de importación de skills</summary>
 
 ```ts
 import {
@@ -267,7 +402,7 @@ import {
   loadSkillFromUrl,
   loadSkillFromZip,
   writeImportedSkill,
-} from 'agentic-decision';
+} from 'harmony-agentic-decisions';
 
 const localSkill = await loadSkillFromDirectory('/skills/release-review');
 const zipSkill = await loadSkillFromZip('/tmp/release-review.zip');
@@ -277,12 +412,17 @@ const clawHubSkill = await loadSkillFromClawHub('https://clawhub.ai/skills/relea
 await writeImportedSkill(remoteSkill, '/explicit/output/directory');
 ```
 
+</details>
+
 ### SkillHub catalog search
 
 SkillHub catalog access is explicit and API-key based:
 
+<details>
+<summary>Ver búsqueda en catálogo SkillHub</summary>
+
 ```ts
-import { SkillHubRegistryClient, loadSkillFromUrl } from 'agentic-decision';
+import { SkillHubRegistryClient, loadSkillFromUrl } from 'harmony-agentic-decisions';
 
 const registry = new SkillHubRegistryClient({
   apiKey: process.env.SKILLHUB_API_KEY!,
@@ -296,6 +436,8 @@ if (first?.pageUrl) {
 }
 ```
 
+</details>
+
 ### Security policy for imported skills
 
 - remote imports are opt-in only
@@ -304,13 +446,16 @@ if (first?.pageUrl) {
 - `allowed-tools` is preserved as metadata only and is not auto-mapped to `allowedActionIds`
 - `writeImportedSkill()` writes only when the host application chooses an explicit target directory
 
-## Controlled Actions
+## Controlled Actions 🛡️
 
 Actions are the difference between "the model guessed" and "the runtime checked".
 
 ### Handler actions
 
 Use handler actions when the capability lives inside your application:
+
+<details>
+<summary>Ver ejemplo de handler action</summary>
 
 ```ts
 {
@@ -326,9 +471,14 @@ Use handler actions when the capability lives inside your application:
 }
 ```
 
+</details>
+
 ### Shell actions
 
 Use shell actions when you want tightly bounded CLI execution:
+
+<details>
+<summary>Ver ejemplo de shell action</summary>
 
 ```ts
 {
@@ -344,6 +494,8 @@ Use shell actions when you want tightly bounded CLI execution:
 }
 ```
 
+</details>
+
 Important runtime guarantees:
 
 - the command is fixed by the host application
@@ -351,7 +503,7 @@ Important runtime guarantees:
 - only base OS variables are inherited by default
 - extra environment variables must be explicitly allowlisted
 
-## Messaging Channels
+## Messaging Channels 💬
 
 Bundled channels:
 
@@ -364,6 +516,9 @@ Bundled channels:
 
 Every messaging provider implements:
 
+<details>
+<summary>Ver interfaz MessagingProvider</summary>
+
 ```ts
 interface MessagingProvider {
   readonly name: string;
@@ -374,7 +529,9 @@ interface MessagingProvider {
 }
 ```
 
-## LLM Providers
+</details>
+
+## LLM Providers 🧠
 
 Bundled LLM adapters:
 
@@ -388,13 +545,16 @@ Bundled LLM adapters:
 
 ### Fallback chains
 
+<details>
+<summary>Ver ejemplo de fallback entre proveedores</summary>
+
 ```ts
 import {
   AnthropicProvider,
   FallbackChain,
   GeminiProvider,
   OpenAIProvider,
-} from 'agentic-decision';
+} from 'harmony-agentic-decisions';
 
 const llm = new FallbackChain({
   providers: [openaiProvider, anthropicProvider, geminiProvider],
@@ -403,13 +563,15 @@ const llm = new FallbackChain({
 });
 ```
 
+</details>
+
 `FallbackChain` combines:
 
 - per-provider retries
 - circuit breakers
 - timeout-based provider failover
 
-## Persistence and Rehydration
+## Persistence and Rehydration ♻️
 
 Use a store when decisions may outlive the current process.
 
@@ -421,6 +583,9 @@ Bundled stores:
 ### Resuming after restart
 
 To resume a session, configure a `rehydrator` that maps persisted state back to the schema for that workflow:
+
+<details>
+<summary>Ver ejemplo de rehidratación</summary>
 
 ```ts
 const orchestrator = new DecisionOrchestrator({
@@ -436,11 +601,16 @@ const orchestrator = new DecisionOrchestrator({
 });
 ```
 
+</details>
+
 If the process restarts and a stored session cannot be rehydrated, the library now aborts that stale active session instead of leaving it permanently locked.
 
 ### Decision usage and cost metadata
 
 `Decision<T>` includes both a coarse `costUsd` total and a structured `usage` summary when the underlying provider returns token accounting:
+
+<details>
+<summary>Ver lectura de métricas de uso/costo</summary>
 
 ```ts
 const decision = await orchestrator.startDecision({ ... });
@@ -451,7 +621,9 @@ console.log(decision.usage?.totalTokens);
 console.log(decision.usage?.calls);
 ```
 
-## Security Model
+</details>
+
+## Security Model 🔐
 
 This library is designed to reduce common agent-runtime failure modes, not eliminate the need for application-level review.
 
@@ -473,7 +645,7 @@ This library is designed to reduce common agent-runtime failure modes, not elimi
 - imported skill bundles may come from untrusted sources and should be treated as content, not executable code
 - business rules still belong in your application, not only in the model prompt
 
-## Reliability Defaults
+## Reliability Defaults 🧱
 
 | Setting | Default |
 | --- | --- |
@@ -490,9 +662,12 @@ Small reliability building blocks are also exported directly:
 - `CircuitBreaker`
 - `CostTracker`
 
-## Public API
+## Public API 🧩
 
 ### `DecisionOrchestrator`
+
+<details>
+<summary>Ver API de `DecisionOrchestrator`</summary>
 
 ```ts
 new DecisionOrchestrator(options: OrchestratorOptions)
@@ -503,7 +678,12 @@ orchestrator.startDecision<T>(request: StartDecisionRequest<T>): Promise<Decisio
 orchestrator.on(event, listener): this
 ```
 
+</details>
+
 ### `OrchestratorOptions`
+
+<details>
+<summary>Ver interfaz `OrchestratorOptions`</summary>
 
 ```ts
 interface OrchestratorOptions {
@@ -526,7 +706,12 @@ interface OrchestratorOptions {
 }
 ```
 
+</details>
+
 ### `StartDecisionRequest<T>`
+
+<details>
+<summary>Ver interfaz `StartDecisionRequest<T>`</summary>
 
 ```ts
 interface StartDecisionRequest<T> {
@@ -542,7 +727,12 @@ interface StartDecisionRequest<T> {
 }
 ```
 
+</details>
+
 ### `Decision<T>`
+
+<details>
+<summary>Ver interfaz `Decision<T>`</summary>
 
 ```ts
 interface Decision<T> {
@@ -563,7 +753,9 @@ interface Decision<T> {
 }
 ```
 
-## Examples Included In This Repository
+</details>
+
+## Examples Included In This Repository 🧪
 
 | Script | Description |
 | --- | --- |
@@ -576,29 +768,36 @@ interface Decision<T> {
 
 Environment bootstrap:
 
+<details>
+<summary>Ver bootstrap de entorno</summary>
+
 ```bash
 cp .env.example .env
 ```
 
+</details>
+
 Then fill only the variables needed for the demo you want to run.
 
-## `llm.txt`
-
-The package ships `llm.txt` in the published tarball.
-Use it as a compact reference file when asking another model to generate integration code against this library.
-When installed from npm, it is available at the package root and is also exported as `agentic-decision/llm.txt`.
-
-## Internal Entry Point
+## Internal Entry Point 🧬
 
 Low-level internals are available for advanced integrations at:
 
+<details>
+<summary>Ver import del entrypoint interno</summary>
+
 ```ts
-import { AgentEngine, SessionManager } from 'agentic-decision/internal';
+import { AgentEngine, SessionManager } from 'harmony-agentic-decisions/internal';
 ```
+
+</details>
 
 Root-level re-exports of those internals remain available for compatibility, but are deprecated.
 
-## Development
+## Development 🛠️
+
+<details>
+<summary>Ver comandos de desarrollo</summary>
 
 ```bash
 pnpm install
@@ -610,15 +809,34 @@ pnpm verify
 pnpm pack:check
 ```
 
+</details>
+
 Notes:
 
 - `pnpm verify` is the publish gate
 - `pnpm pack:check` lets you inspect the tarball before publishing
 - the published package intentionally centers the compiled API, `llm.txt`, and license artifacts
 
-## Publishing
+## Contributing 🤝
+
+Contributions are welcome.
+Please follow the contribution process in:
+
+- `CONTRIBUTING.md`
+- `ISSUES.md`
+
+## Opening Issues 🐞
+
+Use the issue guide in:
+
+- `ISSUES.md`
+
+## Publishing 🚀
 
 Recommended release flow:
+
+<details>
+<summary>Ver flujo recomendado de release</summary>
 
 ```bash
 pnpm verify
@@ -626,8 +844,18 @@ pnpm pack:check
 npm publish --access public
 ```
 
+</details>
+
 If your CI and registry setup support it, prefer trusted publishing or `npm publish --provenance`.
 
-## License
+### npm release checklist
+
+- ensure you are authenticated with `npm whoami`
+- bump version with `npm version patch|minor|major`
+- run `pnpm release:check` to validate quality gate and tarball contents
+- publish with `npm publish --access public`
+- verify install from a clean project with `pnpm add harmony-agentic-decisions`
+
+## License 📄
 
 MIT
