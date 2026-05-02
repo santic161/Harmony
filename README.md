@@ -14,12 +14,12 @@
 </p>
 
 <p align="center">
-  <img alt="npm version" src="https://img.shields.io/npm/v/harmony-agentic-decisions?logo=npm&color=cb3837">
-  <img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-Ready-3178c6?logo=typescript&logoColor=white">
-  <img alt="Agentic AI" src="https://img.shields.io/badge/Agentic%20AI-Enabled-7c3aed">
-  <img alt="Human in the loop" src="https://img.shields.io/badge/Human--in--the--loop-Async-0ea5e9">
-  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-16a34a">
+  <img alt="npm version" src="https://img.shields.io/npm/v/harmony-agentic-decisions?logo=npm&amp;color=cb3837" />
+  <img alt="Node.js 20 or newer" src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&amp;logoColor=white" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-Ready-3178c6?logo=typescript&amp;logoColor=white" />
+  <img alt="Agentic AI" src="https://img.shields.io/badge/Agentic%20AI-Enabled-7c3aed" />
+  <img alt="Human in the loop" src="https://img.shields.io/badge/Human--in--the--loop-Async-0ea5e9" />
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-16a34a" />
 </p>
 
 ## Index
