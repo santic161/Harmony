@@ -1,7 +1,7 @@
 # Harmony - Agentic Decisions For Node.js Workflows
 
 <p align="center">
-  <img src="https://github.com/santic161/Harmony/blob/4f8615133fb53f357fb2061d62a5f6c1e2bffe62/assets/Logo.png?raw=true" alt="Harmony logo" width="420">
+  <img src="https://github.com/santic161/Harmony/blob/main/assets/Logo.png?raw=true" alt="Harmony logo" width="350">
 </p>
 
 <p align="center">
