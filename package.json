@@ -32,6 +32,10 @@
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/santic161/Harmony.git"
+  },
   "scripts": {
     "build": "tsup",
     "prepack": "pnpm build",
